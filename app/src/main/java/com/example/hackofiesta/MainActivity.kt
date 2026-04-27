@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity() {
     fun askGemini(prompt: String) {
         Thread {
             try {
-                val apiKey = "AIzaSyBzyEgRTtM6daGDkME1l_PDaE3QlflwRrA"
+                val apiKey = BuildConfig.GEMINI_API_KEY
 
                 val json = JSONObject().apply {
                     put("contents", JSONArray().apply {
