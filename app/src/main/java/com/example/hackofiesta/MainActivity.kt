@@ -14,11 +14,19 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import java.nio.FloatBuffer
 import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.timerTask
 import kotlin.math.max
 import kotlin.math.min
@@ -33,12 +41,22 @@ class MainActivity : AppCompatActivity() {
     val images = mutableListOf<Bitmap>()
     val seenPlates = mutableSetOf<String>()
 
+    val allDetectedPlates = mutableListOf<Pair<String, String>>()
+
+    lateinit var aiBtn: MaterialButton
+
     val env = OrtEnvironment.getEnvironment()
     lateinit var vehicleModel: OrtSession
     lateinit var trafficModel: OrtSession
     lateinit var plateModel: OrtSession
 
     val ocr = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +71,28 @@ class MainActivity : AppCompatActivity() {
 
         toggle.setOnCheckedChangeListener { _, isOn ->
             if (isOn) startScanning() else stopScanning()
+        }
+
+        aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
+
+        aiBtn.setOnClickListener {
+            if (allDetectedPlates.isEmpty()) {
+                log.append("\nNo plates detected yet")
+                return@setOnClickListener
+            }
+
+            val platesInfo = allDetectedPlates.joinToString("\n") { (plate, state) ->
+                "- Plate: $plate, State: $state"
+            }
+
+            val prompt = """
+            The following license plates were detected:
+            $platesInfo
+            
+            Provide comprehensive traffic analysis and registration insights for all these vehicles.
+            """.trimIndent()
+
+            askGemini(prompt)
         }
     }
 
@@ -123,6 +163,7 @@ class MainActivity : AppCompatActivity() {
             images.clear()
         }
         seenPlates.clear()
+        allDetectedPlates.clear() // Clear list for new scan
         log.text = "Scanning..."
 
         timer = Timer()
@@ -190,7 +231,6 @@ class MainActivity : AppCompatActivity() {
 
                     var bestCandidate: String? = null
 
-                    // Try to find the best match in this specific crop
                     for (match in matches) {
                         val plate = match.value
                         if (plate.length >= 7) {
@@ -210,6 +250,8 @@ class MainActivity : AppCompatActivity() {
                             val stateName = stateMap[stateCode] ?: "Other State"
                             val time = java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                                 .format(Date())
+
+                            allDetectedPlates.add(Pair(plate, stateName))
 
                             runOnUiThread {
                                 log.append("\n[$time] $plate ($stateName)")
@@ -335,5 +377,59 @@ class MainActivity : AppCompatActivity() {
 
         buffer.rewind()
         return buffer
+    }
+
+    fun askGemini(prompt: String) {
+        Thread {
+            try {
+                val apiKey = "AIzaSyBzyEgRTtM6daGDkME1l_PDaE3QlflwRrA"
+
+                // Construct JSON using JSONObject
+                val json = JSONObject().apply {
+                    put("contents", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("text", prompt)
+                                })
+                            })
+                        })
+                    })
+                }
+
+                val body = json.toString().toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}")
+                    .post(body)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+
+                if (response.isSuccessful && responseBody != null) {
+                    val responseJson = JSONObject(responseBody)
+                    val aiText = responseJson.getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text")
+
+                    runOnUiThread {
+                        log.append("\n\n✨ AI Insight:\n$aiText")
+                    }
+                } else {
+                    runOnUiThread {
+                        log.append("\nGemini Error: ${response.code}\n$responseBody")
+                    }
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    log.append("\nGemini error: ${e.message}")
+                }
+            }
+        }.start()
     }
 }

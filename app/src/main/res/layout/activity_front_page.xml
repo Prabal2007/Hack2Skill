@@ -62,11 +62,11 @@
 
             <TextView
                 android:id="@+id/bodyDesc"
-                android:gravity="center_horizontal"
                 style="@style/TextAppearance.AppCompat.Body1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
+                android:gravity="center_horizontal"
                 android:text="Instant vehicle registration extraction and\nstate identification with precision."
                 android:textColor="?attr/colorOnSurfaceVariant"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -137,10 +137,10 @@
                 android:layout_marginTop="10dp"
                 android:background="@android:color/transparent"
                 android:backgroundTint="?attr/colorContainer"
-                app:strokeWidth="0dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/keyFeatures">
+                app:layout_constraintTop_toBottomOf="@id/keyFeatures"
+                app:strokeWidth="0dp">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -192,10 +192,10 @@
                 android:layout_marginTop="10dp"
                 android:background="@android:color/transparent"
                 android:backgroundTint="?attr/colorContainer"
-                app:strokeWidth="0dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/ocrCard">
+                app:layout_constraintTop_toBottomOf="@id/ocrCard"
+                app:strokeWidth="0dp">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -247,10 +247,10 @@
                 android:layout_marginTop="10dp"
                 android:background="@android:color/transparent"
                 android:backgroundTint="?attr/colorContainer"
-                app:strokeWidth="0dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/stateCard">
+                app:layout_constraintTop_toBottomOf="@id/stateCard"
+                app:strokeWidth="0dp">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -296,16 +296,16 @@
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/nextPageBtn"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                app:layout_constraintTop_toBottomOf="@id/lockCard"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
                 android:layout_marginTop="15dp"
                 android:text="Start Analysis"
-                android:textSize="15sp"
                 android:textColor="#FFFFFF"
-                android:id="@+id/nextPageBtn"/>
+                android:textSize="15sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/lockCard" />
 
 
         </androidx.constraintlayout.widget.ConstraintLayout>
