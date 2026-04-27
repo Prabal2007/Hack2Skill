@@ -163,7 +163,7 @@ class MainActivity : AppCompatActivity() {
             images.clear()
         }
         seenPlates.clear()
-        allDetectedPlates.clear() // Clear list for new scan
+        allDetectedPlates.clear()
         log.text = "Scanning..."
 
         timer = Timer()
@@ -384,7 +384,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 val apiKey = "AIzaSyBzyEgRTtM6daGDkME1l_PDaE3QlflwRrA"
 
-                // Construct JSON using JSONObject
                 val json = JSONObject().apply {
                     put("contents", JSONArray().apply {
                         put(JSONObject().apply {
