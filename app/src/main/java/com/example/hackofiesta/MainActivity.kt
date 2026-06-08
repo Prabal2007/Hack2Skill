@@ -18,12 +18,17 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.example.hackofiesta.Database.OverallDatabase
+import com.example.hackofiesta.Database.VehicleLocationData
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -61,6 +66,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var trafficModel: OrtSession
     lateinit var plateModel: OrtSession
 
+    lateinit var database : OverallDatabase
+
     val ocr = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private val client = OkHttpClient.Builder()
@@ -72,6 +79,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        database = OverallDatabase.getDatabase(this)
 
         toggle = findViewById(R.id.tgl)
         log = findViewById(R.id.log)
@@ -92,20 +101,29 @@ class MainActivity : AppCompatActivity() {
             val platesInfo = if (allDetectedPlates.isEmpty()) {
                 "No license plates were identified during this scan."
             } else {
-                "The following license plates were detected:\n" + 
+                "Identified License Plates:\n" + 
                 allDetectedPlates.joinToString("\n") { (plate, state) -> "- Plate: $plate, State: $state" }
             }
 
             val prompt = """
-            Traffic Analysis Request:
+            OFFICIAL TRAFFIC MONITORING REPORT REQUEST
+            
+            SOURCE DATA:
             $platesInfo
+            PEAK VEHICLE DENSITY: $maxVehicles vehicles detected in a single frame.
             
-            Maximum vehicles detected in a single frame during scan: $maxVehicles
+            TASK:
+            Generate a formal executive summary. 
             
-            Provide a brief traffic analysis and insights based on the vehicle count and detected plates (if any).
+            STRICT FORMATTING CONSTRAINTS:
+            1. DO NOT use markdown symbols like asterisks (*) or hashtags (#).
+            2. DO NOT use bold or italic formatting.
+            3. Use plain text only.
+            4. Use ALL CAPS for section headers.
+            5. Maintain a professional administrative tone.
             """.trimIndent()
 
-            log.text = "Fetching AI Insights..."
+            log.text = "Generating Formal AI Report..."
             askGemini(prompt)
         }
     }
@@ -122,7 +140,6 @@ class MainActivity : AppCompatActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
         } else {
-            // If location permissions are missing, request them but don't block camera
             if (permissions.size > 1) {
                 ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
             }
@@ -325,12 +342,14 @@ class MainActivity : AppCompatActivity() {
                 val geocoder = Geocoder(this, Locale.getDefault())
                 if (android.os.Build.VERSION.SDK_INT >= 33) {
                     geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                        val city = if (addresses?.isNotEmpty() == true) addresses[0].locality ?: "Unknown City" else "Unknown Location"
+                        val state = if (addresses?.isNotEmpty() == true) addresses[0].adminArea ?: "Unknown State" else "Unknown Location"
                         val locationName = if (addresses.isNotEmpty()) {
                             addresses[0].getAddressLine(0)
                         } else {
                             "Lat: ${location.latitude}, Lon: ${location.longitude}"
                         }
-                        updateLogSummary(locationName, time)
+                        updateLogSummary(locationName, time, city, state)
                     }
                 } else {
                     @Suppress("DEPRECATION")
@@ -339,24 +358,27 @@ class MainActivity : AppCompatActivity() {
                     } catch (e: Exception) {
                         null
                     }
+                    val city = if (addresses?.isNotEmpty() == true) addresses[0].locality ?: "Unknown City" else "Unknown Location"
+                    val state = if (addresses?.isNotEmpty() == true) addresses[0].adminArea ?: "Unknown State" else "Unknown Location"
                     val locationName = if (addresses?.isNotEmpty() == true) {
                         addresses[0].getAddressLine(0)
                     } else {
                         "Lat: ${location.latitude}, Lon: ${location.longitude}"
                     }
-                    updateLogSummary(locationName, time)
+                    updateLogSummary(locationName, time, city, state)
                 }
             } else {
-                updateLogSummary("Location Unavailable", time)
+                updateLogSummary("Location Unavailable", time, "Unknown City", "Unknown State")
             }
         }.addOnFailureListener {
-            updateLogSummary("Permission denied/Unavailable", time)
+            updateLogSummary("Permission denied/Unavailable", time, "Unknown City", "Unknown State")
         }
     }
 
-    private fun updateLogSummary(locationName: String, time: String) {
+    private fun updateLogSummary(locationName: String, time: String, city : String, state : String) {
+        updateDatabase(city, state, maxVehicles)
         runOnUiThread {
-            log.append("\n\n--- Final Scan Summary ---")
+            log.append("\n\n--- FINAL SCAN SUMMARY ---")
             log.append("\nMax Vehicles Detected: $maxVehicles")
             log.append("\nLocation: $locationName")
             log.append("\nTime: $time")
@@ -420,7 +442,7 @@ class MainActivity : AppCompatActivity() {
 
         for (i in 0 until rawOutput[0].size) {
             val conf = if (rawOutput.size > 4) rawOutput[4][i] else 1f
-            if (conf > 0.55f) { // High threshold to avoid noise
+            if (conf > 0.55f) {
                 val cx = rawOutput[0][i] / size
                 val cy = rawOutput[1][i] / size
                 val w = rawOutput[2][i] / size
@@ -558,15 +580,21 @@ class MainActivity : AppCompatActivity() {
 
                 if (response.isSuccessful && responseBody != null) {
                     val responseJson = JSONObject(responseBody)
-                    val aiText = responseJson.getJSONArray("candidates")
+                    val rawAiText = responseJson.getJSONArray("candidates")
                         .getJSONObject(0)
                         .getJSONObject("content")
                         .getJSONArray("parts")
                         .getJSONObject(0)
                         .getString("text")
 
+                    // Strip markdown symbols (* and #) and normalize the layout
+                    val cleanText = rawAiText
+                        .replace(Regex("[*#]"), "")
+                        .replace(Regex("(?m)^[ \t]*-[ \t]*"), "  • ")
+                        .trim()
+
                     runOnUiThread {
-                        log.text = "✨ AI Insight:\n$aiText"
+                        log.text = "✨ OFFICIAL TRAFFIC ANALYSIS REPORT\n\n$cleanText"
                     }
                 } else {
                     runOnUiThread {
@@ -580,5 +608,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    fun updateDatabase(city : String, state : String, maxVehiclesCount : Int){
+        lifecycleScope.launch(Dispatchers.IO){
+            val existing = database.vehicleLocationDao().getVehicleLocation(city);
+            if (existing != null){
+                var currentVal = existing.vehicleCount!!;
+                currentVal += maxVehiclesCount;
+                val currentId = existing.id;
+                val updatedData = VehicleLocationData(currentId,state,city,currentVal);
+                database.vehicleLocationDao().updateVehicleLocation(updatedData);
+            }
+            else{
+                val newData = VehicleLocationData(0,state,city,maxVehiclesCount);
+                database.vehicleLocationDao().insertVehicleLocation(newData);
+            }
+        }
     }
 }
