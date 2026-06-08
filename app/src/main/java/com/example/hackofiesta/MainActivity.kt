@@ -2,8 +2,11 @@ package com.example.hackofiesta
 
 import ai.onnxruntime.*
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.location.Geocoder
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.TextView
@@ -15,6 +18,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -43,6 +48,11 @@ class MainActivity : AppCompatActivity() {
     val seenPlates = mutableSetOf<String>()
 
     val allDetectedPlates = mutableListOf<Pair<String, String>>()
+    var maxVehicles = 0
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    data class Detection(val box: RectF, val score: Float, val classId: Int)
 
     lateinit var aiBtn: MaterialButton
 
@@ -67,6 +77,8 @@ class MainActivity : AppCompatActivity() {
         log = findViewById(R.id.log)
         preview = findViewById(R.id.previewView)
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
         checkPermission()
         loadModels()
 
@@ -77,32 +89,43 @@ class MainActivity : AppCompatActivity() {
         aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
 
         aiBtn.setOnClickListener {
-            if (allDetectedPlates.isEmpty()) {
-                log.append("\nNo plates detected yet")
-                return@setOnClickListener
-            }
-
-            val platesInfo = allDetectedPlates.joinToString("\n") { (plate, state) ->
-                "- Plate: $plate, State: $state"
+            val platesInfo = if (allDetectedPlates.isEmpty()) {
+                "No license plates were identified during this scan."
+            } else {
+                "The following license plates were detected:\n" + 
+                allDetectedPlates.joinToString("\n") { (plate, state) -> "- Plate: $plate, State: $state" }
             }
 
             val prompt = """
-            The following license plates were detected:
+            Traffic Analysis Request:
             $platesInfo
             
-            Provide comprehensive traffic analysis and registration insights for all these vehicles.
+            Maximum vehicles detected in a single frame during scan: $maxVehicles
+            
+            Provide a brief traffic analysis and insights based on the vehicle count and detected plates (if any).
             """.trimIndent()
 
+            log.text = "Fetching AI Insights..."
             askGemini(prompt)
         }
     }
 
     fun checkPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1)
+        val permissions = mutableListOf(Manifest.permission.CAMERA)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
         } else {
+            // If location permissions are missing, request them but don't block camera
+            if (permissions.size > 1) {
+                ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
+            }
             startCamera()
         }
     }
@@ -113,7 +136,8 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        val cameraIndex = permissions.indexOf(Manifest.permission.CAMERA)
+        if (cameraIndex != -1 && grantResults[cameraIndex] == PackageManager.PERMISSION_GRANTED) {
             startCamera()
         }
     }
@@ -165,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         }
         seenPlates.clear()
         allDetectedPlates.clear()
+        maxVehicles = 0
         log.text = "Scanning..."
 
         timer = Timer()
@@ -188,10 +213,16 @@ class MainActivity : AppCompatActivity() {
             val bmp = preview.bitmap ?: return@runOnUiThread
 
             Thread {
-                val isVehicle = runModel(vehicleModel, bmp, 640)
+                val vehicleCount = runModel(vehicleModel, bmp, 640)
                 val isTraffic = runMioModel(trafficModel, bmp)
 
-                if (isVehicle && isTraffic) {
+                if (vehicleCount > 0 && isTraffic) {
+                    if (vehicleCount > maxVehicles) maxVehicles = vehicleCount
+                    runOnUiThread {
+                        if (toggle.isChecked) {
+                            log.text = "Scanning... Current: $vehicleCount | Max: $maxVehicles"
+                        }
+                    }
                     synchronized(images) {
                         if (images.size < 10) {
                             images.add(bmp)
@@ -219,47 +250,118 @@ class MainActivity : AppCompatActivity() {
         )
 
         val imagesToProcess = synchronized(images) { images.toList() }
+        if (imagesToProcess.isEmpty()) {
+            showSummaryIfNoPlates()
+            return
+        }
 
+        var pendingTasks = 0
+        val tasksToLaunch = mutableListOf<Pair<Bitmap, List<RectF>>>()
+        
         for (img in imagesToProcess) {
             val plateBoxes = detectPlates(plateModel, img)
+            tasksToLaunch.add(img to plateBoxes)
+            pendingTasks += plateBoxes.size
+        }
+
+        if (pendingTasks == 0) {
+            showSummaryIfNoPlates()
+            return
+        }
+
+        for ((img, plateBoxes) in tasksToLaunch) {
             for (plateBox in plateBoxes) {
                 val croppedPlate = cropBitmap(img, plateBox)
                 val input = InputImage.fromBitmap(croppedPlate, 0)
 
-                ocr.process(input).addOnSuccessListener { result ->
-                    val cleanedText = result.text.uppercase().replace(Regex("[^A-Z0-9]"), "")
-                    val matches = platePattern.findAll(cleanedText)
+                ocr.process(input).addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val result = task.result
+                        val cleanedText = result.text.uppercase().replace(Regex("[^A-Z0-9]"), "")
+                        val matches = platePattern.findAll(cleanedText)
 
-                    var bestCandidate: String? = null
+                        var bestCandidate: String? = null
+                        for (match in matches) {
+                            val plate = match.value
+                            if (plate.length >= 7) {
+                                if (bestCandidate == null || plate.length > bestCandidate!!.length) {
+                                    bestCandidate = plate
+                                }
+                            }
+                        }
 
-                    for (match in matches) {
-                        val plate = match.value
-                        if (plate.length >= 7) {
-                            if (bestCandidate == null || plate.length > bestCandidate!!.length) {
-                                bestCandidate = plate
+                        if (bestCandidate == null && cleanedText.length in 7..11) {
+                            bestCandidate = cleanedText
+                        }
+
+                        bestCandidate?.let { plate ->
+                            if (isNewAndUnique(plate)) {
+                                val stateCode = plate.substring(0, 2)
+                                val stateName = stateMap[stateCode] ?: "Other State"
+                                val time = java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                                allDetectedPlates.add(Pair(plate, stateName))
+                                runOnUiThread { log.append("\n[$time] $plate ($stateName)") }
                             }
                         }
                     }
-
-                    if (bestCandidate == null && cleanedText.length in 7..11) {
-                        bestCandidate = cleanedText
-                    }
-
-                    bestCandidate?.let { plate ->
-                        if (isNewAndUnique(plate)) {
-                            val stateCode = plate.substring(0, 2)
-                            val stateName = stateMap[stateCode] ?: "Other State"
-                            val time = java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-                                .format(Date())
-
-                            allDetectedPlates.add(Pair(plate, stateName))
-
-                            runOnUiThread {
-                                log.append("\n[$time] $plate ($stateName)")
-                            }
+                    
+                    synchronized(this) {
+                        pendingTasks--
+                        if (pendingTasks == 0 && allDetectedPlates.isEmpty()) {
+                            showSummaryIfNoPlates()
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun showSummaryIfNoPlates() {
+        val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val geocoder = Geocoder(this, Locale.getDefault())
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                        val locationName = if (addresses.isNotEmpty()) {
+                            addresses[0].getAddressLine(0)
+                        } else {
+                            "Lat: ${location.latitude}, Lon: ${location.longitude}"
+                        }
+                        updateLogSummary(locationName, time)
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val addresses = try {
+                        geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    val locationName = if (addresses?.isNotEmpty() == true) {
+                        addresses[0].getAddressLine(0)
+                    } else {
+                        "Lat: ${location.latitude}, Lon: ${location.longitude}"
+                    }
+                    updateLogSummary(locationName, time)
+                }
+            } else {
+                updateLogSummary("Location Unavailable", time)
+            }
+        }.addOnFailureListener {
+            updateLogSummary("Permission denied/Unavailable", time)
+        }
+    }
+
+    private fun updateLogSummary(locationName: String, time: String) {
+        runOnUiThread {
+            log.append("\n\n--- Final Scan Summary ---")
+            log.append("\nMax Vehicles Detected: $maxVehicles")
+            log.append("\nLocation: $locationName")
+            log.append("\nTime: $time")
+            if (allDetectedPlates.isEmpty()) {
+                log.append("\nStatus: No license plates detected in this session.")
             }
         }
     }
@@ -333,18 +435,65 @@ class MainActivity : AppCompatActivity() {
         return detectedBoxes.distinctBy { "${(it.left * 10).toInt()}_${(it.top * 10).toInt()}" }
     }
 
-    fun runModel(session: OrtSession, bmp: Bitmap, size: Int): Boolean {
+    fun runModel(session: OrtSession, bmp: Bitmap, size: Int): Int {
         val resized = Bitmap.createScaledBitmap(bmp, size, size, true)
         val buffer = bitmapToBuffer(resized, size)
         val tensor =
             OnnxTensor.createTensor(env, buffer, longArrayOf(1, 3, size.toLong(), size.toLong()))
         val result = session.run(mapOf(session.inputNames.first() to tensor))
 
-        val detected = true
+        val rawOutput = (result.get(0).value as Array<Array<FloatArray>>)[0]
+        val detections = mutableListOf<Detection>()
+        val vehicleClasses = setOf(2, 3, 5, 7) // COCO: car, motorcycle, bus, truck
 
+        for (i in 0 until rawOutput[0].size) {
+            var maxConf = 0f
+            var classId = -1
+            for (c in 4 until rawOutput.size) {
+                if (rawOutput[c][i] > maxConf) {
+                    maxConf = rawOutput[c][i]
+                    classId = c - 4
+                }
+            }
+
+            if (maxConf > 0.45f && classId in vehicleClasses) {
+                val cx = rawOutput[0][i] / size
+                val cy = rawOutput[1][i] / size
+                val w = rawOutput[2][i] / size
+                val h = rawOutput[3][i] / size
+                detections.add(Detection(RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), maxConf, classId))
+            }
+        }
+
+        val count = nms(detections).size
         tensor.close()
         result.close()
-        return detected
+        return count
+    }
+
+    private fun nms(detections: List<Detection>): List<Detection> {
+        val res = mutableListOf<Detection>()
+        val sorted = detections.sortedByDescending { it.score }.toMutableList()
+        while (sorted.isNotEmpty()) {
+            val best = sorted.removeAt(0)
+            res.add(best)
+            val iterator = sorted.iterator()
+            while (iterator.hasNext()) {
+                val next = iterator.next()
+                if (iou(best.box, next.box) > 0.45f) {
+                    iterator.remove()
+                }
+            }
+        }
+        return res
+    }
+
+    private fun iou(a: RectF, b: RectF): Float {
+        val intersection = RectF()
+        if (!intersection.setIntersect(a, b)) return 0f
+        val intersectArea = intersection.width() * intersection.height()
+        val unionArea = a.width() * a.height() + b.width() * b.height() - intersectArea
+        return if (unionArea > 0) intersectArea / unionArea else 0f
     }
 
     fun runMioModel(session: OrtSession, bmp: Bitmap): Boolean {
@@ -417,17 +566,17 @@ class MainActivity : AppCompatActivity() {
                         .getString("text")
 
                     runOnUiThread {
-                        log.append("\n\n✨ AI Insight:\n$aiText")
+                        log.text = "✨ AI Insight:\n$aiText"
                     }
                 } else {
                     runOnUiThread {
-                        log.append("\nGemini Error: ${response.code}\n$responseBody")
+                        log.text = "Gemini Error: ${response.code}\n$responseBody"
                     }
                 }
 
             } catch (e: Exception) {
                 runOnUiThread {
-                    log.append("\nGemini error: ${e.message}")
+                    log.text = "Gemini error: ${e.message}"
                 }
             }
         }.start()
