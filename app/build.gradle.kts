@@ -73,4 +73,7 @@ dependencies {
 
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // MPAndroidChart for statistics
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 }

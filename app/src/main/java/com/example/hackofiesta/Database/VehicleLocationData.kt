@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class VehicleLocationData(
 
     @PrimaryKey(autoGenerate = true)
-    val id: Long,
+    val id: Long = 0,
     val currentState: String? = "No State",
     val currentCity: String? = "No City",
     val vehicleCount: Int? = 0

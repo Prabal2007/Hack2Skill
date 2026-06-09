@@ -24,4 +24,10 @@ interface VehicleLocationDAO {
 
     @Query("SELECT * FROM vehicleLocationCountTable")
     fun getVehicleLocationAll(): LiveData<List<VehicleLocationData>>
+
+    @Query("SELECT DISTINCT currentState FROM vehicleLocationCountTable")
+    suspend fun getDistinctStates(): List<String>
+
+    @Query("SELECT * FROM vehicleLocationCountTable WHERE currentState = :state")
+    fun getVehicleDataByState(state: String): LiveData<List<VehicleLocationData>>
 }

@@ -5,6 +5,7 @@
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
         <item name="colorContainer">@color/card_bg_light</item>
         <item name="colorPrimary">@color/button_bg</item>
+        <item name ="colorIcon">@color/icon_light</item>
     </style>
 
     <style name="Theme.Hackofiesta" parent="Base.Theme.Hackofiesta" />

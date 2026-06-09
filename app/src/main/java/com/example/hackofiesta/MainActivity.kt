@@ -3,23 +3,29 @@ package com.example.hackofiesta
 import ai.onnxruntime.*
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.*
 import android.location.Geocoder
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.ArrayAdapter
+import android.widget.CheckBox
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.ToggleButton
-import com.example.hackofiesta.BuildConfig
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.hackofiesta.Database.OverallDatabase
+import com.example.hackofiesta.Database.VehicleLocationDAO
 import com.example.hackofiesta.Database.VehicleLocationData
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -29,6 +35,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -78,9 +85,59 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
         database = OverallDatabase.getDatabase(this)
+
+//        lifecycleScope.launch(Dispatchers.IO){
+//            database.vehicleLocationDao().deleteVehicleLocation(VehicleLocationData(208,"Rajasthan","Jaipur",72));
+//        }
+
+        val statBtn = findViewById<MaterialButton>(R.id.statsBtn);
+
+        statBtn.setOnClickListener {
+            val layoutOpen = layoutInflater.inflate(R.layout.state_card, null)
+
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setView(layoutOpen)
+                .create()
+
+            dialog.show()
+            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+            val state = layoutOpen.findViewById<Spinner>(R.id.stateSpinner)
+
+            val applyBtn = layoutOpen.findViewById<MaterialButton>(R.id.btnApply)
+
+            lifecycleScope.launch(Dispatchers.IO){
+                val disStates = database.vehicleLocationDao().getDistinctStates();
+                withContext(Dispatchers.Main) {
+                    val stateAdapter = ArrayAdapter(
+                        this@MainActivity,
+                        android.R.layout.simple_spinner_item,
+                        disStates
+                    )
+
+                    stateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+
+                    state.adapter = stateAdapter
+                }
+            }
+
+            applyBtn.setOnClickListener {
+
+                val stateData = state.selectedItem.toString()
+
+                val sharedPref = getSharedPreferences("vehicleState",MODE_PRIVATE)
+                val editor = sharedPref.edit();
+                editor.putString("selected_state", stateData).apply()
+
+                startActivity(Intent(this, StatisticsActivity::class.java));
+
+                dialog.dismiss()
+            }
+        }
 
         toggle = findViewById(R.id.tgl)
         log = findViewById(R.id.log)
@@ -125,6 +182,12 @@ class MainActivity : AppCompatActivity() {
 
             log.text = "Generating Formal AI Report..."
             askGemini(prompt)
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
         }
     }
 
