@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [VehicleLocationData::class],
-    version = 2
+    version = 3
 )
 abstract class OverallDatabase : RoomDatabase() {
 
@@ -27,6 +27,13 @@ abstract class OverallDatabase : RoomDatabase() {
 
 
 
+        val migration_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vehicleLocationCountTable ADD COLUMN latitude REAL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE vehicleLocationCountTable ADD COLUMN longitude REAL DEFAULT 0.0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: OverallDatabase? = null
 
@@ -37,7 +44,8 @@ abstract class OverallDatabase : RoomDatabase() {
                         context.applicationContext,
                         OverallDatabase::class.java,
                         "overallDB")
-                        .addMigrations(migration_1_2)
+                        .addMigrations(migration_1_2, migration_2_3)
+                        .fallbackToDestructiveMigration()
                         .build()
                 }
             }

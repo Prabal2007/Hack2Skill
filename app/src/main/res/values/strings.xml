@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">Hackofiesta</string>
+    <string name="search_hotspots_hint">Search for hotspots...</string>
+    <string name="map_type_normal">Normal</string>
+    <string name="map_type_satellite">Satellite</string>
+    <string name="density_index_title">DENSITY INDEX</string>
+    <string name="density_high">High Alert (&gt;20)</string>
+    <string name="density_moderate">Moderate (10-20)</string>
+    <string name="density_normal">Normal flow (&lt;10)</string>
+    <string name="recenter_button">Recenter</string>
+    <string name="city_name_placeholder">City Name</string>
+    <string name="state_name_placeholder">State Name</string>
+    <string name="vehicle_count_placeholder">0 Vehicles</string>
+    <string name="detailed_stats_button">Detailed Stats</string>
+    <string name="search_icon_desc">Search Icon</string>
+    <string name="map_title">Traffic Hotspots</string>
+    <string name="map_preview_label">Google Maps Preview</string>
+    <string name="gemini_icon_desc">Gemini AI Icon</string>
+    <string name="ai_trend_analysis_title">AI Trend Analysis</string>
+    <string name="btn_analyze">Analyze</string>
+    <string name="ai_insights_placeholder">Tap \'Analyze\' to generate AI insights based on the current data.</string>
+    <string name="gathering_data_msg">Gathering data and analyzing trends for %1$s...</string>
+    <string name="insufficient_data_msg">Insufficient data to perform trend analysis for %1$s.</string>
+    <string name="analysis_failed_msg">Analysis failed. Please try again later.</string>
+    <string name="analysis_error_msg">Error generating insights: %1$s</string>
 </resources>

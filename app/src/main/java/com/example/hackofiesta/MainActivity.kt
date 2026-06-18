@@ -10,7 +10,6 @@ import android.location.Geocoder
 import android.os.Bundle
 import android.util.Log
 import android.widget.ArrayAdapter
-import android.widget.CheckBox
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.ToggleButton
@@ -25,11 +24,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.hackofiesta.Database.OverallDatabase
-import com.example.hackofiesta.Database.VehicleLocationDAO
 import com.example.hackofiesta.Database.VehicleLocationData
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -90,69 +89,35 @@ class MainActivity : AppCompatActivity() {
 
         database = OverallDatabase.getDatabase(this)
 
-//        lifecycleScope.launch(Dispatchers.IO){
-//            database.vehicleLocationDao().deleteVehicleLocation(VehicleLocationData(208,"Rajasthan","Jaipur",72));
-//        }
-
-        val statBtn = findViewById<MaterialButton>(R.id.statsBtn);
-
-        statBtn.setOnClickListener {
-            val layoutOpen = layoutInflater.inflate(R.layout.state_card, null)
-
-            val dialog = android.app.AlertDialog.Builder(this)
-                .setView(layoutOpen)
-                .create()
-
-            dialog.show()
-            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-            val state = layoutOpen.findViewById<Spinner>(R.id.stateSpinner)
-
-            val applyBtn = layoutOpen.findViewById<MaterialButton>(R.id.btnApply)
-
-            lifecycleScope.launch(Dispatchers.IO){
-                val disStates = database.vehicleLocationDao().getDistinctStates();
-                withContext(Dispatchers.Main) {
-                    val stateAdapter = ArrayAdapter(
-                        this@MainActivity,
-                        android.R.layout.simple_spinner_item,
-                        disStates
-                    )
-
-                    stateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-
-                    state.adapter = stateAdapter
-                }
-            }
-
-            applyBtn.setOnClickListener {
-
-                val stateData = state.selectedItem.toString()
-
-                val sharedPref = getSharedPreferences("vehicleState",MODE_PRIVATE)
-                val editor = sharedPref.edit();
-                editor.putString("selected_state", stateData).apply()
-
-                startActivity(Intent(this, StatisticsActivity::class.java));
-
-                dialog.dismiss()
-            }
-        }
+        val materialToolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.materialToolbar)
+        materialToolbar.setNavigationOnClickListener { finish() }
 
         toggle = findViewById(R.id.tgl)
+        val tglOn = findViewById<MaterialButton>(R.id.tglOn)
+        val tglOff = findViewById<MaterialButton>(R.id.tglOff)
+        val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.toggleGroup)
+        
         log = findViewById(R.id.log)
         preview = findViewById(R.id.previewView)
+        aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         checkPermission()
         loadModels()
 
-        toggle.setOnCheckedChangeListener { _, isOn ->
-            if (isOn) startScanning() else stopScanning()
+        toggleGroup.check(R.id.tglOff)
+        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                if (checkedId == R.id.tglOn) {
+                    toggle.isChecked = true
+                    startScanning()
+                } else if (checkedId == R.id.tglOff) {
+                    toggle.isChecked = false
+                    stopScanning()
+                }
+            }
         }
-
-        aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
 
         aiBtn.setOnClickListener {
             val platesInfo = if (allDetectedPlates.isEmpty()) {
@@ -407,12 +372,12 @@ class MainActivity : AppCompatActivity() {
                     geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
                         val city = if (addresses?.isNotEmpty() == true) addresses[0].locality ?: "Unknown City" else "Unknown Location"
                         val state = if (addresses?.isNotEmpty() == true) addresses[0].adminArea ?: "Unknown State" else "Unknown Location"
-                        val locationName = if (addresses.isNotEmpty()) {
+                        val locationName = if (addresses?.isNotEmpty() == true) {
                             addresses[0].getAddressLine(0)
                         } else {
                             "Lat: ${location.latitude}, Lon: ${location.longitude}"
                         }
-                        updateLogSummary(locationName, time, city, state)
+                        updateLogSummary(locationName, time, city, state, location.latitude, location.longitude)
                     }
                 } else {
                     @Suppress("DEPRECATION")
@@ -428,18 +393,18 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         "Lat: ${location.latitude}, Lon: ${location.longitude}"
                     }
-                    updateLogSummary(locationName, time, city, state)
+                    updateLogSummary(locationName, time, city, state, location.latitude, location.longitude)
                 }
             } else {
-                updateLogSummary("Location Unavailable", time, "Unknown City", "Unknown State")
+                updateLogSummary("Location Unavailable", time, "Unknown City", "Unknown State", 0.0, 0.0)
             }
         }.addOnFailureListener {
-            updateLogSummary("Permission denied/Unavailable", time, "Unknown City", "Unknown State")
+            updateLogSummary("Permission denied/Unavailable", time, "Unknown City", "Unknown State", 0.0, 0.0)
         }
     }
 
-    private fun updateLogSummary(locationName: String, time: String, city : String, state : String) {
-        updateDatabase(city, state, maxVehicles)
+    private fun updateLogSummary(locationName: String, time: String, city : String, state : String, lat: Double, lon: Double) {
+        updateDatabase(city, state, maxVehicles, lat, lon)
         runOnUiThread {
             log.append("\n\n--- FINAL SCAN SUMMARY ---")
             log.append("\nMax Vehicles Detected: $maxVehicles")
@@ -673,18 +638,18 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    fun updateDatabase(city : String, state : String, maxVehiclesCount : Int){
+    fun updateDatabase(city : String, state : String, maxVehiclesCount : Int, lat: Double, lon: Double){
         lifecycleScope.launch(Dispatchers.IO){
             val existing = database.vehicleLocationDao().getVehicleLocation(city);
             if (existing != null){
                 var currentVal = existing.vehicleCount!!;
                 currentVal += maxVehiclesCount;
                 val currentId = existing.id;
-                val updatedData = VehicleLocationData(currentId,state,city,currentVal);
+                val updatedData = VehicleLocationData(currentId,state,city,currentVal, lat, lon);
                 database.vehicleLocationDao().updateVehicleLocation(updatedData);
             }
             else{
-                val newData = VehicleLocationData(0,state,city,maxVehiclesCount);
+                val newData = VehicleLocationData(0,state,city,maxVehiclesCount, lat, lon);
                 database.vehicleLocationDao().insertVehicleLocation(newData);
             }
         }
