@@ -92,11 +92,17 @@ class MainActivity : AppCompatActivity() {
         val materialToolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.materialToolbar)
         materialToolbar.setNavigationOnClickListener { finish() }
 
+        val backBtn = findViewById<MaterialButton>(R.id.backBtn)
+
+        backBtn.setOnClickListener {
+            finish()
+        }
+
         toggle = findViewById(R.id.tgl)
         val tglOn = findViewById<MaterialButton>(R.id.tglOn)
         val tglOff = findViewById<MaterialButton>(R.id.tglOff)
         val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.toggleGroup)
-        
+
         log = findViewById(R.id.log)
         preview = findViewById(R.id.previewView)
         aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
@@ -123,8 +129,8 @@ class MainActivity : AppCompatActivity() {
             val platesInfo = if (allDetectedPlates.isEmpty()) {
                 "No license plates were identified during this scan."
             } else {
-                "Identified License Plates:\n" + 
-                allDetectedPlates.joinToString("\n") { (plate, state) -> "- Plate: $plate, State: $state" }
+                "Identified License Plates:\n" +
+                        allDetectedPlates.joinToString("\n") { (plate, state) -> "- Plate: $plate, State: $state" }
             }
 
             val prompt = """
@@ -302,7 +308,7 @@ class MainActivity : AppCompatActivity() {
 
         var pendingTasks = 0
         val tasksToLaunch = mutableListOf<Pair<Bitmap, List<RectF>>>()
-        
+
         for (img in imagesToProcess) {
             val plateBoxes = detectPlates(plateModel, img)
             tasksToLaunch.add(img to plateBoxes)
@@ -349,10 +355,10 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    
+
                     synchronized(this) {
                         pendingTasks--
-                        if (pendingTasks == 0 && allDetectedPlates.isEmpty()) {
+                        if (pendingTasks == 0) {
                             showSummaryIfNoPlates()
                         }
                     }
@@ -364,7 +370,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun showSummaryIfNoPlates() {
         val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-        
+
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 val geocoder = Geocoder(this, Locale.getDefault())
@@ -404,10 +410,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLogSummary(locationName: String, time: String, city : String, state : String, lat: Double, lon: Double) {
-        updateDatabase(city, state, maxVehicles, lat, lon)
+        updateDatabase(city, state, maxVehicles, allDetectedPlates.size, lat, lon)
         runOnUiThread {
             log.append("\n\n--- FINAL SCAN SUMMARY ---")
             log.append("\nMax Vehicles Detected: $maxVehicles")
+            log.append("\nPlates Detected: ${allDetectedPlates.size}")
             log.append("\nLocation: $locationName")
             log.append("\nTime: $time")
             if (allDetectedPlates.isEmpty()) {
@@ -638,20 +645,24 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    fun updateDatabase(city : String, state : String, maxVehiclesCount : Int, lat: Double, lon: Double){
+    fun updateDatabase(city : String, state : String, maxVehiclesCount : Int, platesDetected: Int, lat: Double, lon: Double){
         lifecycleScope.launch(Dispatchers.IO){
             val existing = database.vehicleLocationDao().getVehicleLocation(city);
             if (existing != null){
                 var currentVal = existing.vehicleCount!!;
                 currentVal += maxVehiclesCount;
+                var currentPlates = existing.plateCount ?: 0
+                currentPlates += platesDetected
                 val currentId = existing.id;
-                val updatedData = VehicleLocationData(currentId,state,city,currentVal, lat, lon);
+                val updatedData = VehicleLocationData(currentId,state,city,currentVal, currentPlates, lat, lon);
                 database.vehicleLocationDao().updateVehicleLocation(updatedData);
             }
             else{
-                val newData = VehicleLocationData(0,state,city,maxVehiclesCount, lat, lon);
+                val newData = VehicleLocationData(0,state,city,maxVehiclesCount, platesDetected, lat, lon);
                 database.vehicleLocationDao().insertVehicleLocation(newData);
             }
         }
     }
+
+
 }

@@ -32,20 +32,6 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/themeToggleBtn"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="16dp"
-                app:icon="@drawable/baseline_lock_24"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
-            <!-- Note: I'll use a better icon in code or via drawable if I find one,
-                 reusing baseline_lock_24 as a placeholder if needed,
-                 but I should check for a better one. -->
-
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </com.google.android.material.appbar.MaterialToolbar>
@@ -219,7 +205,7 @@
                         <ImageView
                             android:layout_width="48dp"
                             android:layout_height="48dp"
-                            android:src="@drawable/google_gemini_icon_2025" />
+                            android:src="@drawable/gemini_color" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -233,7 +219,6 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Map Tile -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/mapTile"
                     android:layout_width="0dp"
@@ -279,6 +264,7 @@
                 android:layout_height="64dp"
                 android:layout_marginTop="40dp"
                 android:text="Launch Analysis Engine"
+                android:textColor="#FFFFFF"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 app:cornerRadius="20dp"

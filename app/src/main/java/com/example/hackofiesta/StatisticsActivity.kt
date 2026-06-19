@@ -29,9 +29,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.internal.base.zam
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.w3c.dom.Text
 
 class StatisticsActivity : AppCompatActivity() {
 
@@ -48,6 +50,12 @@ class StatisticsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_statistics)
 
         database = OverallDatabase.getDatabase(this)
+
+        val backBtn = findViewById<MaterialButton>(R.id.backBtn)
+
+        backBtn.setOnClickListener {
+            finish()
+        }
 
         val toolbar = findViewById<MaterialToolbar>(R.id.materialToolbar)
         toolbar.setNavigationOnClickListener { finish() }
@@ -87,20 +95,29 @@ class StatisticsActivity : AppCompatActivity() {
             barDataSet.colors = ColorTemplate.MATERIAL_COLORS.toList()
             barDataSet.valueTextSize = 12f
 
+            val typedValue = android.util.TypedValue();
+            theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)
+            val semanticTextColor = typedValue.data
+
             val barData = BarData(barDataSet)
             barData.barWidth = 0.7f
 
             barChart.data = barData
             barChart.description.isEnabled = false
             barChart.animateY(1200)
+
+            barDataSet.valueTextColor = semanticTextColor
             
             val xAxis = barChart.xAxis
+            xAxis.textColor = semanticTextColor;
             xAxis.valueFormatter = IndexAxisValueFormatter(labels)
             xAxis.position = XAxis.XAxisPosition.BOTTOM
             xAxis.granularity = 1f
             xAxis.setDrawGridLines(false)
 
             barChart.axisLeft.axisMinimum = 0f
+            barChart.axisLeft.textColor = semanticTextColor;
+            barChart.legend.textColor = semanticTextColor;
             barChart.axisRight.isEnabled = false
             barChart.invalidate()
         }
@@ -118,6 +135,10 @@ class StatisticsActivity : AppCompatActivity() {
                 entries.add(PieEntry(item.vehicleCount?.toFloat() ?: 0f, item.currentCity ?: "Unknown"))
             }
 
+            val typedValue = android.util.TypedValue()
+            theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)
+            val semanticTextColor = typedValue.data
+
             val pieDataSet = PieDataSet(entries, "City Distribution")
             pieDataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
             pieDataSet.valueTextSize = 14f
@@ -126,6 +147,11 @@ class StatisticsActivity : AppCompatActivity() {
             val pieData = PieData(pieDataSet)
             pieChart.data = pieData
             pieChart.centerText = "Density"
+
+            pieChart.setHoleColor(Color.TRANSPARENT)
+            pieChart.setCenterTextColor(semanticTextColor)
+            pieChart.legend.textColor = semanticTextColor
+
             pieChart.description.isEnabled = false
             pieChart.animateXY(1000, 1000)
             pieChart.invalidate()
@@ -189,7 +215,7 @@ class StatisticsActivity : AppCompatActivity() {
 
                 val body = json.toString().toRequestBody("application/json".toMediaType())
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=$apiKey")
                     .post(body)
                     .build()
 

@@ -12,6 +12,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.hackofiesta.Database.OverallDatabase
+import com.example.hackofiesta.Database.VehicleLocationData
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.Dispatchers
@@ -20,14 +21,6 @@ import kotlinx.coroutines.withContext
 
 class FrontPage : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        val sharedPref = getSharedPreferences("vehicleState", MODE_PRIVATE)
-        val isDark = sharedPref.getBoolean("isDarkMode", false)
-        if (isDark) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-        } else {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-        }
-
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_front_page)
@@ -37,28 +30,6 @@ class FrontPage : AppCompatActivity() {
         val analyticsTile = findViewById<MaterialCardView>(R.id.analyticsTile)
         val aiInsightsTile = findViewById<MaterialCardView>(R.id.aiInsightsTile)
         val mapTile = findViewById<MaterialCardView>(R.id.mapTile)
-        val themeToggleBtn = findViewById<MaterialButton>(R.id.themeToggleBtn)
-
-        val savedState = sharedPref.getString("selected_state", null)
-
-        fun updateThemeIcon() {
-            val isDarkMode = AppCompatDelegate.getDefaultNightMode() == AppCompatDelegate.MODE_NIGHT_YES
-            themeToggleBtn.setIconResource(if (isDarkMode) R.drawable.ic_light_mode else R.drawable.ic_dark_mode)
-        }
-        
-        updateThemeIcon()
-
-        themeToggleBtn.setOnClickListener {
-            val isDarkMode = AppCompatDelegate.getDefaultNightMode() == AppCompatDelegate.MODE_NIGHT_YES
-            if (isDarkMode) {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-                sharedPref.edit().putBoolean("isDarkMode", false).apply()
-            } else {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-                sharedPref.edit().putBoolean("isDarkMode", true).apply()
-            }
-            updateThemeIcon()
-        }
 
         btn.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
@@ -73,7 +44,6 @@ class FrontPage : AppCompatActivity() {
         }
 
         aiInsightsTile.setOnClickListener {
-            // Suggesting to navigate to a dedicated insights page or start scan
             Toast.makeText(this, "AI Analysis requires a fresh scan.", Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, MainActivity::class.java))
         }

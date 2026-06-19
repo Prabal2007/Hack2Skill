@@ -3,8 +3,13 @@
     <style name="Base.Theme.Hackofiesta" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your dark theme here. -->
         <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <item name="colorPrimary">@color/button_bg</item> <!-- Keeps your brand button color blue[cite: 19] -->
+        <item name="colorSurface">@color/surface_dark</item>
+        <item name="colorOnSurface">@color/on_surface_dark</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant_dark</item>
         <item name="colorContainer">@color/card_bg_dark</item>
-        <item name="colorPrimary">@color/button_bg</item>
+        <item name="colorSurfaceVariant">@color/card_bg_dark</item>
+        <item name="colorOutlineVariant">@color/outline_variant_dark</item>
         <item name="colorIcon">@color/icon_dark</item>
     </style>
 </resources>

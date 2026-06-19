@@ -3,9 +3,14 @@
     <style name="Base.Theme.Hackofiesta" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
-        <item name="colorContainer">@color/card_bg_light</item>
         <item name="colorPrimary">@color/button_bg</item>
-        <item name ="colorIcon">@color/icon_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnSurface">@color/on_surface_light</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant_light</item>
+        <item name="colorContainer">@color/card_bg_light</item>
+        <item name="colorSurfaceVariant">@color/card_bg_light</item>
+        <item name="colorOutlineVariant">@color/outline_variant_light</item>
+        <item name="colorIcon">@color/icon_light</item>
     </style>
 
     <style name="Theme.Hackofiesta" parent="Base.Theme.Hackofiesta" />
