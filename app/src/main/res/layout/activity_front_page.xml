@@ -32,6 +32,22 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/logout"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="0dp"
+                app:icon="@drawable/logout_svgrepo_com"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="30dp"
+                app:iconTint="?attr/colorIcon"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_bias="0.0" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </com.google.android.material.appbar.MaterialToolbar>

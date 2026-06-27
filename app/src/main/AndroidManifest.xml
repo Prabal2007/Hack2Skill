@@ -27,13 +27,16 @@
             android:name=".MapActivity"
             android:exported="false" />
         <activity
+            android:name=".FrontPage"
+            android:exported="false" />
+        <activity
             android:name=".StatisticsActivity"
             android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="false" />
         <activity
-            android:name=".FrontPage"
+            android:name=".Login_Page"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

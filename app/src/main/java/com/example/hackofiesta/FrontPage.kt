@@ -6,6 +6,7 @@ import android.widget.ArrayAdapter
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.ViewCompat
@@ -30,6 +31,32 @@ class FrontPage : AppCompatActivity() {
         val analyticsTile = findViewById<MaterialCardView>(R.id.analyticsTile)
         val aiInsightsTile = findViewById<MaterialCardView>(R.id.aiInsightsTile)
         val mapTile = findViewById<MaterialCardView>(R.id.mapTile)
+
+        val logout = findViewById<MaterialButton>(R.id.logout)
+
+        logout.setOnClickListener {
+
+            val layoutOpen = layoutInflater.inflate(R.layout.logout_card, null)
+
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setView(layoutOpen)
+                .create()
+
+            dialog.show()
+            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+            val btnNo = layoutOpen.findViewById<MaterialButton>(R.id.btnNO)
+            val btnYes = layoutOpen.findViewById<MaterialButton>(R.id.btnYES)
+
+            btnNo.setOnClickListener {
+                dialog.dismiss()
+
+            }
+
+            btnYes.setOnClickListener {
+                val intent = Intent(this, Login_Page::class.java)
+                startActivity(intent)
+            }
+        }
 
         btn.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
