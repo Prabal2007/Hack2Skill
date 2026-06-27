@@ -47,7 +47,7 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     private var congestionMap = mutableMapOf<String, Int>()
 
     // UI elements
-    private lateinit var routeSpinner: Spinner
+    private lateinit var routeAutoComplete: AutoCompleteTextView
     private lateinit var txtInstructions: TextView
     private lateinit var btnModeSim: Button
     private lateinit var btnModeLiveGps: Button
@@ -61,6 +61,11 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var txtScannerLog: TextView
     private lateinit var txtTimeSaved: TextView
     private lateinit var txtPriorityStatus: TextView
+    private lateinit var modeToggleGroup: com.google.android.material.button.MaterialButtonToggleGroup
+    private lateinit var bottomControlCard: View
+    private lateinit var lblSignalProximity: View
+    private lateinit var cardMissionLog: View
+    private lateinit var lblMissionLog: View
 
     // Mission Analytics
     private var totalTimeSavedSeconds: Int = 0
@@ -92,6 +97,7 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     )
 
     private val junctionMarkers = mutableMapOf<String, Marker>()
+    private val junctionCircles = mutableMapOf<String, Circle>()
 
     // Runnables for updates
     private val handler = Handler(Looper.getMainLooper())
@@ -149,16 +155,22 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun loadCongestionData() {
-        // LiveData observation must be on the main thread
         database.vehicleLocationDao().getVehicleLocationAll().observe(this) { dataList ->
             dataList?.forEach { data ->
                 val cityName = data.currentCity ?: ""
-                congestionMap[cityName] = data.vehicleCount ?: 0
+                val count = data.vehicleCount ?: 0
+                congestionMap[cityName] = count
                 
-                // Also update marker visual if it's a high congestion area
-                if ((data.vehicleCount ?: 0) > 20) {
-                    junctionMarkers[cityName]?.let { marker ->
-                        // Optional: Could change marker color or add a circle
+                // Update radius visualization immediately when data changes
+                val overrideRadius = if (count > 20) 800.0 else 500.0
+                junctionCircles[cityName]?.let { circle ->
+                    circle.radius = overrideRadius
+                    if (count > 20) {
+                        circle.strokeColor = Color.argb(150, 239, 68, 68) // Critical Red
+                        circle.fillColor = Color.argb(40, 239, 68, 68)
+                    } else {
+                        circle.strokeColor = Color.argb(100, 37, 99, 235) // Standard Blue
+                        circle.fillColor = Color.argb(20, 37, 99, 235)
                     }
                 }
             }
@@ -170,7 +182,7 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         val backBtn = findViewById<Button>(R.id.backBtn)
         backBtn.setOnClickListener { finish() }
 
-        routeSpinner = findViewById(R.id.routeSpinner)
+        routeAutoComplete = findViewById(R.id.routeAutoComplete)
         txtInstructions = findViewById(R.id.txtInstructions)
         btnModeSim = findViewById(R.id.btnModeSim)
         btnModeLiveGps = findViewById(R.id.btnModeLiveGps)
@@ -184,33 +196,52 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         txtScannerLog = findViewById(R.id.txtScannerLog)
         txtTimeSaved = findViewById(R.id.txtTimeSaved)
         txtPriorityStatus = findViewById(R.id.txtPriorityStatus)
+        modeToggleGroup = findViewById(R.id.modeToggleGroup)
+        bottomControlCard = findViewById(R.id.bottomControlCard)
+        lblSignalProximity = findViewById(R.id.lblSignalProximity)
+        cardMissionLog = findViewById(R.id.cardMissionLog)
+        lblMissionLog = findViewById(R.id.lblMissionLog)
 
-        // Setup Spinners
+        // Initial setup: Hide the technical logs as requested earlier
+        lblMissionLog.visibility = View.GONE
+        cardMissionLog.visibility = View.GONE
+
+        // Setup Route Dropdown
         val routes = arrayOf(
             "Gachibowli ➔ Cyber Towers",
             "Kondapur ➔ Jubilee Hills Checkpost",
             "Custom Route (Tap Map)"
         )
-        val routeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, routes)
-        routeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        routeSpinner.adapter = routeAdapter
+        val routeAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, routes)
+        routeAutoComplete.setAdapter(routeAdapter)
 
-        routeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position == 2) {
-                    txtInstructions.text = "Tap two locations on the map to set a Custom Start and End route."
-                    if (::mMap.isInitialized) {
-                        clearRouteAndSimulation()
-                    }
-                } else {
-                    txtInstructions.text = "Preset selected. Press 'Start' to begin the simulation."
-                    if (::mMap.isInitialized) {
-                        loadPresetRoute(position)
-                    }
+        routeAutoComplete.setOnItemClickListener { _, _, position, _ ->
+            val routes = arrayOf(
+                "Gachibowli ➔ Cyber Towers",
+                "Kondapur ➔ Jubilee Hills Checkpost",
+                "Custom Route (Tap Map)"
+            )
+            if (position == 2) {
+                txtInstructions.text = getString(R.string.instruction_custom)
+                if (::mMap.isInitialized) {
+                    clearRouteAndSimulation()
+                    // Hide the control card so the user has a full view of the map for selection
+                    bottomControlCard.animate()
+                        .translationY(bottomControlCard.height.toFloat() + 200f)
+                        .setDuration(500)
+                        .start()
+                }
+            } else {
+                txtInstructions.text = getString(R.string.instruction_preset)
+                if (::mMap.isInitialized) {
+                    loadPresetRoute(position)
+                    // Show the control card for preset routes
+                    bottomControlCard.animate()
+                        .translationY(0f)
+                        .setDuration(500)
+                        .start()
                 }
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         // Mode Toggles
@@ -236,7 +267,7 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         speedSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 speedMultiplier = progress + 1
-                lblSpeed.text = "Speed: ${speedMultiplier}x"
+                lblSpeed.text = getString(R.string.label_speed_x, speedMultiplier)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -266,6 +297,17 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             marker?.let {
                 junctionMarkers[junction.name] = it
             }
+
+            // Add radius visualization circle
+            val circle = mMap.addCircle(
+                CircleOptions()
+                    .center(junction.latLng)
+                    .radius(500.0)
+                    .strokeWidth(2f)
+                    .strokeColor(Color.argb(100, 37, 99, 235)) // Blue outline
+                    .fillColor(Color.argb(20, 37, 99, 235))   // Faint blue fill
+            )
+            junctionCircles[junction.name] = circle
         }
 
         // Recenter to Hyderabad Gachibowli
@@ -296,14 +338,25 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
                 )
                 Toast.makeText(this, "End point set. Custom route calculated.", Toast.LENGTH_SHORT).show()
 
-                routeSpinner.setSelection(2) // Set to Custom
+                val routes = arrayOf(
+                    "Gachibowli ➔ Cyber Towers",
+                    "Kondapur ➔ Jubilee Hills Checkpost",
+                    "Custom Route (Tap Map)"
+                )
+                routeAutoComplete.setText(routes[2], false) // Set to Custom
                 calculateCustomRoute()
+
+                // Show bottom UI back once destination is selected
+                bottomControlCard.animate().translationY(0f).setDuration(500).start()
             } else {
                 // Reset custom markers
                 customStartMarker?.remove()
                 customStartMarker = null
                 customEndMarker?.remove()
                 customEndMarker = null
+
+                // Hide card again for new selection
+                bottomControlCard.animate().translationY(bottomControlCard.height.toFloat() + 100f).setDuration(500).start()
 
                 customStartMarker = mMap.addMarker(
                     MarkerOptions()
@@ -328,17 +381,22 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             btnModeSim.setBackgroundColor(getThemeColor(com.google.android.material.R.attr.colorContainer))
             btnModeLiveGps.setBackgroundColor(Color.TRANSPARENT)
             simControlsLayout.visibility = View.VISIBLE
-            txtInstructions.visibility = View.VISIBLE
-            routeSpinner.visibility = View.VISIBLE
             // Load selected preset or custom route
             if (::mMap.isInitialized) {
-                loadPresetRoute(routeSpinner.selectedItemPosition)
+                val selectedRoute = routeAutoComplete.text.toString()
+                val routes = arrayOf(
+                    "Gachibowli ➔ Cyber Towers",
+                    "Kondapur ➔ Jubilee Hills Checkpost",
+                    "Custom Route (Tap Map)"
+                )
+                val index = routes.indexOf(selectedRoute)
+                if (index != -1) loadPresetRoute(index)
             }
         } else {
             btnModeLiveGps.setBackgroundColor(getThemeColor(com.google.android.material.R.attr.colorContainer))
             btnModeSim.setBackgroundColor(Color.TRANSPARENT)
             simControlsLayout.visibility = View.GONE
-            txtInstructions.text = "GPS Tracking Mode active. Overriding signals in 500m radius of your actual device location."
+            txtInstructions.text = getString(R.string.instruction_gps)
             clearRouteAndSimulation()
             startGpsTracking()
         }
@@ -526,7 +584,19 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             // Predictive Override Logic: Increase radius for high congestion junctions
             val count = congestionMap[junction.name] ?: 0
             val overrideRadius = if (count > 20) 800.0f else 500.0f
-            
+
+            // Update Map Visualization
+            junctionCircles[junction.name]?.let { circle ->
+                circle.radius = overrideRadius.toDouble()
+                if (count > 20) {
+                    circle.strokeColor = Color.argb(150, 239, 68, 68) // Red for high congestion
+                    circle.fillColor = Color.argb(40, 239, 68, 68)
+                } else {
+                    circle.strokeColor = Color.argb(100, 37, 99, 235) // Blue for normal
+                    circle.fillColor = Color.argb(20, 37, 99, 235)
+                }
+            }
+
             val withinRange = distance < overrideRadius
             if (withinRange) {
                 junction.isGreen = true
