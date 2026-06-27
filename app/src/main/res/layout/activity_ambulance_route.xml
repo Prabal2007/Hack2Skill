@@ -89,13 +89,34 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <TextView
-                    style="@style/TextAppearance.Material3.LabelLarge"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="ROUTE CONFIGURATION"
-                    android:textColor="?attr/colorPrimary"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        style="@style/TextAppearance.Material3.LabelLarge"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="ROUTE CONFIGURATION"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.chip.Chip
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="LIVE ANALYTICS SYNC"
+                        android:textColor="#FFFFFF"
+                        app:chipBackgroundColor="#10B981"
+                        app:chipCornerRadius="16dp"
+                        app:chipStrokeWidth="0dp"
+                        android:textSize="10sp"
+                        app:chipIcon="@android:drawable/stat_notify_sync"
+                        app:chipIconTint="#FFFFFF"
+                        app:chipIconSize="14dp" />
+                </LinearLayout>
 
                 <Spinner
                     android:id="@+id/routeSpinner"
@@ -164,6 +185,83 @@
                         android:textColor="?attr/colorOnSurface" />
 
                 </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <LinearLayout
+                    android:id="@+id/missionAnalyticsLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="?attr/colorOutlineVariant"
+                        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="12dp"
+                            android:gravity="center">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/label_time_saved"
+                                style="@style/TextAppearance.Material3.LabelSmall"
+                                android:textColor="?attr/colorPrimary"
+                                android:textStyle="bold" />
+                            <TextView
+                                android:id="@+id/txtTimeSaved"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/default_time_saved"
+                                style="@style/TextAppearance.Material3.HeadlineSmall"
+                                android:textStyle="bold"
+                                android:textColor="#10B981" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="?attr/colorOutlineVariant"
+                        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="12dp"
+                            android:gravity="center">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/label_priority_lock"
+                                style="@style/TextAppearance.Material3.LabelSmall"
+                                android:textColor="?attr/colorPrimary"
+                                android:textStyle="bold" />
+                            <TextView
+                                android:id="@+id/txtPriorityStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/status_inactive"
+                                style="@style/TextAppearance.Material3.HeadlineSmall"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/simControlsLayout"

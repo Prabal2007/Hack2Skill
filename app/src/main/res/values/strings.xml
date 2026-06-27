@@ -24,4 +24,10 @@
     <string name="analysis_failed_msg">Analysis failed. Please try again later.</string>
     <string name="analysis_error_msg">Error generating insights: %1$s</string>
 
+    <!-- Ambulance Mission Analytics -->
+    <string name="label_time_saved">TIME SAVED</string>
+    <string name="label_priority_lock">PRIORITY LOCK</string>
+    <string name="status_inactive">INACTIVE</string>
+    <string name="status_active">ACTIVE</string>
+    <string name="default_time_saved">0.0m</string>
 </resources>
