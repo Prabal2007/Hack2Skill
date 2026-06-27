@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var toggle: ToggleButton
     lateinit var log: TextView
     lateinit var preview: PreviewView
+    lateinit var junctionSpinner: Spinner
 
     var timer: Timer? = null
     val images = mutableListOf<Bitmap>()
@@ -108,6 +109,21 @@ class MainActivity : AppCompatActivity() {
         aiBtn = findViewById<MaterialButton>(R.id.aiBtn)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        junctionSpinner = findViewById(R.id.junctionSpinner)
+        val junctions = arrayOf(
+            "Default GPS (Live Sensor)",
+            "Cyber Towers Junction",
+            "Mindspace Junction",
+            "IKEA Junction",
+            "Gachibowli Junction",
+            "Kondapur Junction",
+            "Madhapur Junction",
+            "Jubilee Hills Checkpost"
+        )
+        val junctionAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, junctions)
+        junctionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        junctionSpinner.adapter = junctionAdapter
 
         checkPermission()
         loadModels()
@@ -370,6 +386,30 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun showSummaryIfNoPlates() {
         val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+
+        val selectedPosition = junctionSpinner.selectedItemPosition
+        if (selectedPosition > 0) {
+            val junctionName = junctionSpinner.selectedItem.toString()
+            val (lat, lon) = when (junctionName) {
+                "Cyber Towers Junction" -> 17.4504 to 78.3808
+                "Mindspace Junction" -> 17.4428 to 78.3813
+                "IKEA Junction" -> 17.4385 to 78.3755
+                "Gachibowli Junction" -> 17.4401 to 78.3489
+                "Kondapur Junction" -> 17.4623 to 78.3697
+                "Madhapur Junction" -> 17.4486 to 78.3908
+                "Jubilee Hills Checkpost" -> 17.4331 to 78.4069
+                else -> 0.0 to 0.0
+            }
+            updateLogSummary(
+                locationName = "$junctionName, Hyderabad, Telangana",
+                time = time,
+                city = junctionName,
+                state = "Telangana",
+                lat = lat,
+                lon = lon
+            )
+            return
+        }
 
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {

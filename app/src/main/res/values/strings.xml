@@ -23,4 +23,5 @@
     <string name="insufficient_data_msg">Insufficient data to perform trend analysis for %1$s.</string>
     <string name="analysis_failed_msg">Analysis failed. Please try again later.</string>
     <string name="analysis_error_msg">Error generating insights: %1$s</string>
+
 </resources>

@@ -31,6 +31,7 @@ class FrontPage : AppCompatActivity() {
         val analyticsTile = findViewById<MaterialCardView>(R.id.analyticsTile)
         val aiInsightsTile = findViewById<MaterialCardView>(R.id.aiInsightsTile)
         val mapTile = findViewById<MaterialCardView>(R.id.mapTile)
+        val ambulanceRouteTile = findViewById<MaterialCardView>(R.id.ambulanceRouteTile)
 
         val logout = findViewById<MaterialButton>(R.id.logout)
 
@@ -77,6 +78,10 @@ class FrontPage : AppCompatActivity() {
 
         mapTile.setOnClickListener {
             startActivity(Intent(this, MapActivity::class.java))
+        }
+
+        ambulanceRouteTile.setOnClickListener {
+            startActivity(Intent(this, AmbulanceRouteActivity::class.java))
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
