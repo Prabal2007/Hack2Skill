@@ -2,7 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/ambulanceXml"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
@@ -38,7 +38,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Ambulance Route Planner"
-                style="@style/TextAppearance.AppCompat.Headline"
+                style="@style/TextAppearance.Material3.TitleLarge"
                 android:textStyle="bold"
                 android:textColor="?attr/colorOnSurface"
                 app:layout_constraintTop_toTopOf="parent"
@@ -67,12 +67,13 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Floating Top Card for Route Selection -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/topRouteCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginTop="5dp"
             app:cardCornerRadius="24dp"
             app:cardElevation="6dp"
             app:cardBackgroundColor="?attr/colorSurface"
@@ -115,12 +116,13 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Floating Bottom Card/Sheet for Simulation & Override Feed -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/bottomControlCard"
             android:layout_width="match_parent"
             android:layout_height="320dp"
-            android:layout_margin="16dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginBottom="5dp"
             app:cardCornerRadius="24dp"
             app:cardElevation="8dp"
             app:cardBackgroundColor="?attr/colorSurface"
@@ -136,7 +138,6 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- Mode Selector Toggle Group -->
                 <com.google.android.material.button.MaterialButtonToggleGroup
                     android:id="@+id/modeToggleGroup"
                     android:layout_width="match_parent"
@@ -164,7 +165,6 @@
 
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
-                <!-- Simulation Controls Container (hidden in Live GPS Mode) -->
                 <LinearLayout
                     android:id="@+id/simControlsLayout"
                     android:layout_width="match_parent"
@@ -184,6 +184,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="8dp"
+                            android:textColor="#FFFFFF"
                             android:text="Start" />
 
                         <com.google.android.material.button.MaterialButton
@@ -236,7 +237,6 @@
                     android:background="?attr/colorOutlineVariant"
                     android:layout_marginVertical="12dp" />
 
-                <!-- Bottom scrollable status logs & scanner overlays -->
                 <androidx.core.widget.NestedScrollView
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
@@ -248,7 +248,6 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <!-- Signal Status Area -->
                         <TextView
                             style="@style/TextAppearance.Material3.LabelLarge"
                             android:layout_width="wrap_content"
@@ -264,7 +263,6 @@
                             android:orientation="vertical"
                             android:layout_marginTop="6dp" />
 
-                        <!-- Transponder Live Override Log -->
                         <TextView
                             style="@style/TextAppearance.Material3.LabelLarge"
                             android:layout_width="wrap_content"
