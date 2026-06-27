@@ -23,6 +23,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.NestedScrollView
+import androidx.lifecycle.lifecycleScope
+import com.example.hackofiesta.Database.OverallDatabase
+import com.example.hackofiesta.Database.VehicleLocationData
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -30,6 +33,9 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,6 +43,8 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var database: OverallDatabase
+    private var congestionMap = mutableMapOf<String, Int>()
 
     // UI elements
     private lateinit var routeSpinner: Spinner
@@ -51,6 +59,12 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var speedSeekBar: SeekBar
     private lateinit var layoutSignalList: LinearLayout
     private lateinit var txtScannerLog: TextView
+    private lateinit var txtTimeSaved: TextView
+    private lateinit var txtPriorityStatus: TextView
+
+    // Mission Analytics
+    private var totalTimeSavedSeconds: Int = 0
+    private var junctionsClearedInMission = mutableSetOf<String>()
 
     // Location / Route State
     private enum class Mode { SIMULATION, LIVE_GPS }
@@ -118,6 +132,8 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_ambulance_route)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        database = OverallDatabase.getDatabase(this)
+        loadCongestionData()
 
         setupUI()
 
@@ -129,6 +145,24 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
+        }
+    }
+
+    private fun loadCongestionData() {
+        // LiveData observation must be on the main thread
+        database.vehicleLocationDao().getVehicleLocationAll().observe(this) { dataList ->
+            dataList?.forEach { data ->
+                val cityName = data.currentCity ?: ""
+                congestionMap[cityName] = data.vehicleCount ?: 0
+                
+                // Also update marker visual if it's a high congestion area
+                if ((data.vehicleCount ?: 0) > 20) {
+                    junctionMarkers[cityName]?.let { marker ->
+                        // Optional: Could change marker color or add a circle
+                    }
+                }
+            }
+            updateSignalListUI()
         }
     }
 
@@ -148,6 +182,8 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         speedSeekBar = findViewById(R.id.speedSeekBar)
         layoutSignalList = findViewById(R.id.layoutSignalList)
         txtScannerLog = findViewById(R.id.txtScannerLog)
+        txtTimeSaved = findViewById(R.id.txtTimeSaved)
+        txtPriorityStatus = findViewById(R.id.txtPriorityStatus)
 
         // Setup Spinners
         val routes = arrayOf(
@@ -374,6 +410,9 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         ambulanceMarker?.remove()
         ambulanceMarker = null
         simIndex = 0
+        totalTimeSavedSeconds = 0
+        junctionsClearedInMission.clear()
+        updateAnalyticsUI()
 
         // Reset signal states
         if (::mMap.isInitialized) {
@@ -472,6 +511,7 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
         // Priority Override Logic
         val greenIcon = bitmapDescriptorFromVector(this, R.drawable.ic_traffic_light_green)
         val redIcon = bitmapDescriptorFromVector(this, R.drawable.ic_traffic_light_red)
+        var anyJunctionActive = false
 
         for (junction in junctionsList) {
             val distResults = FloatArray(1)
@@ -483,16 +523,35 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             val distance = distResults[0]
             junction.distance = distance
 
-            val withinRange = distance < 500.0f
+            // Predictive Override Logic: Increase radius for high congestion junctions
+            val count = congestionMap[junction.name] ?: 0
+            val overrideRadius = if (count > 20) 800.0f else 500.0f
+            
+            val withinRange = distance < overrideRadius
             if (withinRange) {
                 junction.isGreen = true
                 junctionMarkers[junction.name]?.setIcon(greenIcon)
+                anyJunctionActive = true
 
                 // Log transponder override trigger on entry
                 if (!junction.previouslyGreen) {
                     junction.previouslyGreen = true
+                    
+                    // Dynamic Time Saved Logic:
+                    // Formula: Base signal cycle wait (30s) + (Number of vehicles * 3.5s clearance per car)
+                    if (!junctionsClearedInMission.contains(junction.name)) {
+                        val baseWait = 30 
+                        val perVehicleDelay = 3.5
+                        val calculatedSaved = baseWait + (count * perVehicleDelay)
+                        
+                        totalTimeSavedSeconds += calculatedSaved.toInt()
+                        junctionsClearedInMission.add(junction.name)
+                        updateAnalyticsUI()
+                    }
+
                     val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                    appendLog("⚡ [$time] OVERRIDE: ${junction.name} scanner detected Ambulance!\n   ↳ Transponder ID: AMB-TX-991\n   ↳ Signal overridden to GREEN (Priority Lock)")
+                    val congestionMsg = if (count > 20) " [CRITICAL CONGESTION DETECTED: EXTENDED RANGE]" else ""
+                    appendLog("⚡ [$time] OVERRIDE: ${junction.name} scanner detected Ambulance!$congestionMsg\n   ↳ Transponder ID: AMB-TX-991\n   ↳ Signal overridden to GREEN (Priority Lock)")
                 }
             } else {
                 junction.isGreen = false
@@ -507,7 +566,27 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
+        updatePriorityStatusUI(anyJunctionActive)
         updateSignalListUI()
+    }
+
+    private fun updateAnalyticsUI() {
+        runOnUiThread {
+            val minutes = totalTimeSavedSeconds / 60.0
+            txtTimeSaved.text = String.format("%.1fm", minutes)
+        }
+    }
+
+    private fun updatePriorityStatusUI(isActive: Boolean) {
+        runOnUiThread {
+            if (isActive) {
+                txtPriorityStatus.text = getString(R.string.status_active)
+                txtPriorityStatus.setTextColor(Color.parseColor("#2563EB")) // Blue
+            } else {
+                txtPriorityStatus.text = getString(R.string.status_inactive)
+                txtPriorityStatus.setTextColor(getThemeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
+            }
+        }
     }
 
     private fun appendLog(msg: String) {
@@ -529,7 +608,11 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateSignalListUI() {
         runOnUiThread {
             layoutSignalList.removeAllViews()
-            for (junction in junctionsList) {
+            
+            // Sort junctions by distance for a more professional look
+            val sortedJunctions = junctionsList.sortedBy { it.distance }
+            
+            for (junction in sortedJunctions) {
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
@@ -561,10 +644,29 @@ class AmbulanceRouteActivity : AppCompatActivity(), OnMapReadyCallback {
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply {
-                        setMargins(0, 0, dpToPx(16), 0)
+                        setMargins(0, 0, dpToPx(8), 0)
                     }
                     setTextColor(getThemeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
                     textSize = 13f
+                }
+
+                // Congestion Badge
+                val count = congestionMap[junction.name] ?: 0
+                if (count > 0) {
+                    val badge = TextView(this).apply {
+                        text = if (count > 20) "HIGH" else "MODERATE"
+                        setBackgroundResource(if (count > 20) R.drawable.bg_badge_red else R.drawable.bg_badge_orange)
+                        setTextColor(Color.WHITE)
+                        textSize = 10f
+                        setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            setMargins(0, 0, dpToPx(12), 0)
+                        }
+                    }
+                    row.addView(badge)
                 }
 
                 // Traffic Light color circle
